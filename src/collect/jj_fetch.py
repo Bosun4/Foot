@@ -1,6 +1,7 @@
 import json, re
-from pathlib import Path
 from typing import Any, Dict, List, Optional
+from pathlib import Path
+
 import requests
 from requests.exceptions import SSLError
 import urllib3
@@ -8,7 +9,10 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 JSONP_RE = re.compile(r"^[^(]*\((.*)\)\s*;?\s*$", re.S)
 
-def _get(url: str, headers: dict, timeout: int = 20) -> requests.Response:
+HOME_KEYS = ["home","Home","HomeTeam","homeTeam","host","Host","hostTeam","主队","主","hn","h_cn","hname","home_name","teamHome","team1","t1","hteam"]
+AWAY_KEYS = ["away","Away","AwayTeam","awayTeam","guest","Guest","guestTeam","客队","客","an","a_cn","aname","away_name","teamAway","team2","t2","ateam"]
+
+def _get(url: str, headers: Dict[str,str], timeout=20) -> requests.Response:
     try:
         return requests.get(url, headers=headers, timeout=timeout)
     except SSLError:
@@ -25,8 +29,8 @@ def _walk(obj: Any) -> List[Dict]:
     out = []
     if isinstance(obj, dict):
         keys = set(obj.keys())
-        has_home = any(k in keys for k in ["home","Home","HomeTeam","homeTeam","主队","主","hn","h_cn"])
-        has_away = any(k in keys for k in ["away","Away","AwayTeam","awayTeam","客队","客","an","a_cn"])
+        has_home = any(k in keys for k in HOME_KEYS)
+        has_away = any(k in keys for k in AWAY_KEYS)
         if has_home and has_away:
             out.append(obj)
         for v in obj.values():
@@ -57,41 +61,35 @@ def _odds_1x2(d: Dict) -> Dict[str, Optional[float]]:
         ("h","d","a"),
         ("odds_win","odds_draw","odds_lose"),
         ("homeWin","draw","awayWin"),
+        ("W","D","L"),
     ]:
         ow,od,oa=_f(d.get(a)),_f(d.get(b)),_f(d.get(c))
         if ow and od and oa:
             return {"win":ow,"draw":od,"lose":oa}
-    # dict / array
-    for k in ["odds","sp","had","1x2"]:
+    for k in ["odds","sp","had","h2h","1x2"]:
         v = d.get(k)
         if isinstance(v,(list,tuple)) and len(v)>=3:
             ow,od,oa=_f(v[0]),_f(v[1]),_f(v[2])
             if ow and od and oa: return {"win":ow,"draw":od,"lose":oa}
         if isinstance(v,dict):
-            ow=_f(v.get("win") or v.get("3"))
-            od=_f(v.get("draw") or v.get("1"))
-            oa=_f(v.get("lose") or v.get("0"))
+            ow=_f(v.get("win") or v.get("3") or v.get("W"))
+            od=_f(v.get("draw") or v.get("1") or v.get("D"))
+            oa=_f(v.get("lose") or v.get("0") or v.get("L"))
             if ow and od and oa: return {"win":ow,"draw":od,"lose":oa}
     return {"win":None,"draw":None,"lose":None}
 
-def fetch_from_config() -> Dict[str, Any]:
-    cfg = json.loads(Path("data/jj_config.json").read_text(encoding="utf-8"))
-    api_url = (cfg.get("api_url") or "").strip()
-    headers = cfg.get("headers") or {}
-    if not api_url:
-        raise RuntimeError("api_url empty. Run probe: python -m src.tools.probe_jj")
-
+def fetch(api_url: str, headers: Dict[str,str]) -> Dict[str, Any]:
     r = _get(api_url, headers=headers, timeout=25)
     data = _parse_json_or_jsonp(r.text)
 
     items = []
     for d in _walk(data):
-        home = _pick(d, ["home","HomeTeam","homeTeam","h_cn","主队","主","h","hn"])
-        away = _pick(d, ["away","AwayTeam","awayTeam","a_cn","客队","客","a","an"])
+        home = _pick(d, HOME_KEYS)
+        away = _pick(d, AWAY_KEYS)
         if not home or not away:
             continue
-        league = _pick(d, ["league","League","l_cn","联赛","赛事","competition"])
-        time_  = _pick(d, ["time","Time","start_time","bt","开赛","比赛时间","dateTime","kickoff"])
+        league = _pick(d, ["league","League","l_cn","联赛","赛事","competition","matchType","type"])
+        time_  = _pick(d, ["time","Time","start_time","bt","开赛","比赛时间","dateTime","kickoff","matchTime"])
         odds = _odds_1x2(d)
         handicap = _pick(d, ["handicap","rq","goalline","让球"])
         items.append({
@@ -101,8 +99,8 @@ def fetch_from_config() -> Dict[str, Any]:
             "handicap": handicap
         })
 
-    # 去重
     uniq = {}
     for m in items:
         uniq[(m["home"],m["away"],m["time"])] = m
     return {"raw": data, "matches": list(uniq.values())}
+

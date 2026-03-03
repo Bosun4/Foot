@@ -1,9 +1,12 @@
 {
   "meta": {
-    "generated_at_utc": "2026-03-03 12:59:16 UTC",
+    "generated_at_utc": "2026-03-03 13:53:26 UTC",
     "source": "jj.shshier.com",
+    "home_url": "https://jj.shshier.com/#/?tabindex=0",
+    "api_url": "",
+    "discover_sample": "",
     "count": 0,
-    "error": "api_url empty. Run probe: python -m src.tools.probe_jj"
+    "error": "JJ api_url still empty (site may block). Run once in Codespaces: python -m src.collect.jj_export, then check data/jj_config.json"
   },
   "matches": []
 }

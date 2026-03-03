@@ -1,5 +1,10 @@
 {
   "home_url": "https://jj.shshier.com/#/?tabindex=0",
   "api_url": "",
-  "headers": {}
+  "headers": {
+    "User-Agent": "Mozilla/5.0",
+    "Accept": "application/json, text/plain, */*",
+    "Referer": "https://jj.shshier.com/",
+    "X-Requested-With": "XMLHttpRequest"
+  }
 }
