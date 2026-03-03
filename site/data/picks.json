@@ -1,0 +1,26 @@
+{
+  "meta": {
+    "generated_at_utc": "2026-03-03 00:05:43 UTC",
+    "python": "3.12",
+    "seasons_used": [
+      "2526",
+      "2425"
+    ],
+    "window_days": 14,
+    "note": "Poisson+Elo + scoreline matrix + EV/Kelly + backtest (football-data.co.uk)"
+  },
+  "stats": {
+    "fixtures": 0,
+    "top": 0,
+    "backtest": {
+      "matches_used": 2993,
+      "bets": 2451,
+      "roi": 0.192,
+      "hit_rate": 0.4537,
+      "avg_ev": 0.2535,
+      "logloss": 0.9384
+    }
+  },
+  "top_picks": [],
+  "all": []
+}
