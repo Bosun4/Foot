@@ -1,3 +1,7 @@
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2/dist/tailwind.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css">
 <!doctype html>
 <html lang="zh">
 <head>
@@ -21,10 +25,42 @@
     <div class="card"><div class="k">Top Picks</div><div id="k_top" class="v">-</div></div>
     <div class="card"><div class="k">回测ROI</div><div id="k_roi" class="v">-</div></div>
     <div class="card"><div class="k">回测命中</div><div id="k_hit" class="v">-</div></div>
+    <div class="card"><div class="k">平均 EV</div><div id="k_ev" class="v">-</div></div>
+    <div class="card"><div class="k">Logloss</div><div id="k_log" class="v">-</div></div>
   </div>
 </header>
 
+  <!-- 仪表盘卡片示例 -->
+  <div class="wrap">
+    <div class="grid grid-cols-3 gap-4">
+      <div class="bg-green-500 p-6 rounded-xl text-white">
+        <h3>预计胜率</h3>
+        <p id="winRate" class="text-4xl font-bold">68.4%</p>
+      </div>
+      <!-- 更多卡片 -->
+    </div>
+  </div>
+
 <main class="wrap">
+  <section>
+    <h2>分析统计</h2>
+    <div class="table-wrap">
+      <table id="stats">
+        <thead><tr>
+          <th>项</th><th>值</th>
+        </tr></thead>
+        <tbody>
+          <tr><td>使用比赛</td><td id="s_matches">-</td></tr>
+          <tr><td>投注次数</td><td id="s_bets">-</td></tr>
+          <tr><td>平均 EV</td><td id="s_ev">-</td></tr>
+          <tr><td>Logloss</td><td id="s_log">-</td></tr>
+          <tr><td>回测 ROI</td><td id="s_roi">-</td></tr>
+          <tr><td>回测命中率</td><td id="s_hit">-</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
   <section>
     <h2>Top Picks</h2>
     <div class="hint">只有行里带到赔率列时才算 EV/Kelly；否则只展示模型概率/比分。</div>

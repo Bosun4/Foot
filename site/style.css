@@ -16,7 +16,7 @@ body{margin:0;background:var(--bg);color:var(--txt);}
 .sub{color:var(--muted);font-size:13px;margin-top:4px;}
 .meta{margin-top:10px;color:var(--muted);font-size:12px;}
 .btn{background:var(--panel);border:1px solid var(--line);color:var(--txt);padding:8px 10px;border-radius:10px;}
-.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px;}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-top:14px;}
 .card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:14px;padding:12px;}
 .k{color:var(--muted);font-size:12px;}
 .v{font-size:22px;font-weight:800;margin-top:6px;}
@@ -32,10 +32,14 @@ th{position:sticky;top:0;background:var(--panel2);z-index:1;}
 .b-ok{color:var(--warn);}
 .b-no{color:var(--muted);}
 .footer{color:var(--muted);font-size:12px;padding-bottom:26px;}
-@media (max-width:900px){ .cards{grid-template-columns:repeat(2,1fr);} }
+@media (max-width:900px){ .cards{grid-template-columns:repeat(auto-fit,minmax(120px,1fr));} }
 
 /* probability display tweaks */
 .prob-block{font-size:.85rem;line-height:1.2;}
+
+/* stats table */
+#stats td,#stats th{padding:6px 8px;}
+#stats tr:nth-child(even){background:var(--panel2);}
 .prob-block div{margin-bottom:2px;}
 .prob-block .model{font-weight:600;}
 .prob-block .val.high{color:var(--good);}
