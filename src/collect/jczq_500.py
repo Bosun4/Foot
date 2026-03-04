@@ -26,7 +26,8 @@ def _to_float(x: str) -> Optional[float]:
 def fetch_one_day(date_str: str) -> List[Dict]:
     url = f"https://trade.500.com/jczq/?date={date_str}"
     r = requests.get(url, headers=HEADERS, timeout=20)
-    r.encoding = "utf-8"
+    enc = r.apparent_encoding or "gbk"
+    r.encoding = enc
     soup = BeautifulSoup(r.text, "html.parser")
 
     matches = []
