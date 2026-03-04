@@ -33,3 +33,10 @@ th{position:sticky;top:0;background:var(--panel2);z-index:1;}
 .b-no{color:var(--muted);}
 .footer{color:var(--muted);font-size:12px;padding-bottom:26px;}
 @media (max-width:900px){ .cards{grid-template-columns:repeat(2,1fr);} }
+
+/* probability display tweaks */
+.prob-block{font-size:.85rem;line-height:1.2;}
+.prob-block div{margin-bottom:2px;}
+.prob-block .model{font-weight:600;}
+.prob-block .val.high{color:var(--good);}
+.prob-block .val.low{color:var(--warn);}

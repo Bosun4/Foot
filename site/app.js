@@ -28,6 +28,20 @@ async function main(){
   const top = data.top_picks || [];
   const all = data.all || [];
 
+  function renderModelProbs(x){
+    const tpl = (tag, arr) => {
+      if(!arr) return '';
+      return `<div class="model">${tag}: ` +
+             `${(arr[0]*100).toFixed(1)} / ${(arr[1]*100).toFixed(1)} / ${(arr[2]*100).toFixed(1)}%</div>`;
+    };
+    let out = `<div class="prob-block">`;
+    out += tpl('PE', x.pe_p);
+    out += tpl('ML', x.ml_p);
+    out += tpl('BM', x.bm_p);
+    out += `</div>`;
+    return out;
+  }
+
   document.querySelector("#top tbody").innerHTML = top.map(x => `
     <tr>
       <td>${x.date||""}</td>
@@ -39,6 +53,7 @@ async function main(){
       <td>${x.ev ?? "-"}</td>
       <td>${x.kelly ?? "-"}</td>
       <td>${x.p_home?`${(x.p_home*100).toFixed(1)} / ${(x.p_draw*100).toFixed(1)} / ${(x.p_away*100).toFixed(1)}%`:"-"}</td>
+      <td>${renderModelProbs(x) || "-"}</td>
       <td>${x.odds_win?`${x.odds_win} / ${x.odds_draw} / ${x.odds_lose} (${x.book||"-"})`:"-"}</td>
     </tr>
   `).join("");
@@ -50,6 +65,8 @@ async function main(){
       <td>${x.home||""}</td>
       <td>${x.away||""}</td>
       <td>${(x.xg_home!=null)?`${x.xg_home.toFixed(2)} / ${x.xg_away.toFixed(2)}`:"-"}</td>
+      <td>${x.p_home?`${(x.p_home*100).toFixed(1)} / ${(x.p_draw*100).toFixed(1)} / ${(x.p_away*100).toFixed(1)}%`:"-"}</td>
+      <td>${renderModelProbs(x) || ""}</td>
       <td>${x.most_likely_score||""}</td>
       <td>${badge(x.label||"-")}</td>
       <td title="${(x.why||"").replaceAll('"','')}">${x.why||""}</td>

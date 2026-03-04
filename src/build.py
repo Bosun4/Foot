@@ -6,24 +6,39 @@ from datetime import datetime, timezone
 from src.data.sources import LEAGUES, season_code_for, prev_season, fetch_league, split_played_future, fetch_fixtures_fallback, pick_1x2_odds
 from src.models.poisson_elo import run_elo, fit_poisson, FitModels, predict as predict_pe
 from src.models.ml_ensemble import train_models, compute_latest_team_form, predict_proba
+from src.models.bookmaker import predict_from_odds
+from src.models.upset import avoid_upset
 from src.engine.value import implied_prob, remove_overround, calc, score, label
 from src.backtest.backtest import backtest
 
 FUTURE_WINDOW_DAYS = 90
 EV_THRESHOLD_BT = 0.03
 
-# 融合权重：Poisson/Elo vs ML
-W_PE = 0.60
-W_ML = 0.40
+# 融合权重：Poisson/Elo vs ML vs Bookmaker
+W_PE = 0.50
+W_ML = 0.30
+W_BM = 0.20
 
-def fuse_probs(pe: tuple[float,float,float], ml: tuple[float,float,float] | None) -> tuple[float,float,float]:
-    if ml is None:
-        return pe
-    ph = W_PE*pe[0] + W_ML*ml[0]
-    pd = W_PE*pe[1] + W_ML*ml[1]
-    pa = W_PE*pe[2] + W_ML*ml[2]
-    s = ph+pd+pa
-    return (ph/s, pd/s, pa/s) if s>0 else pe
+def fuse_probs(pe: tuple[float,float,float], ml: tuple[float,float,float] | None,
+               weights: tuple[float,float,float] = None) -> tuple[float,float,float]:
+    """Fuse probabilities from two sources with optional custom weights.
+
+    By default this uses global W_PE and W_ML, but weights tuple allows
+    overriding (w_pe, w_ml, w_bm) when incorporating bookmaker probabilities.
+    """
+    if weights is None:
+        w_pe, w_ml, w_bm = W_PE, W_ML, 0.0
+    else:
+        w_pe, w_ml, w_bm = weights
+    ph = w_pe * pe[0]
+    pd = w_pe * pe[1]
+    pa = w_pe * pe[2]
+    if ml is not None:
+        ph += w_ml * ml[0]
+        pd += w_ml * ml[1]
+        pa += w_ml * ml[2]
+    s = ph + pd + pa
+    return (ph/s, pd/s, pa/s) if s > 0 else pe
 
 def main():
     os.makedirs("site/data", exist_ok=True)
@@ -128,7 +143,16 @@ def main():
 
         ph, pd_, pa = fuse_probs(pe_probs, ml_probs)
 
+        # bookmaker implied probabilities
         oh, od, oa, book = pick_1x2_odds(r)
+        bm_probs = None
+        if oh and od and oa:
+            bm_probs = predict_from_odds((oh, od, oa))
+            if bm_probs:
+                ph, pd_, pa = fuse_probs((ph,pd_,pa), bm_probs, weights=(1-W_BM, 0, W_BM))
+
+        # apply upset-prevention heuristic
+        ph, pd_, pa = avoid_upset(ph, pd_, pa)
 
         best = None
         s = None
@@ -169,9 +193,14 @@ def main():
             "away": away,
             "xg_home": round(pe["xg_home"], 2),
             "xg_away": round(pe["xg_away"], 2),
+            # fused probability
             "p_home": round(ph, 4),
             "p_draw": round(pd_, 4),
             "p_away": round(pa, 4),
+            # individual model probabilities for UI
+            "pe_p": pe_probs,
+            "ml_p": ml_probs,
+            "bm_p": bm_probs,
             "p_over25": round(pe["p_over25"], 4),
             "p_btts": round(pe["p_btts"], 4),
             "most_likely_score": pe["most_likely_score"],
@@ -202,7 +231,7 @@ def main():
             "python": "3.12",
             "seasons_used": [sc, sc_prev],
             "window_days": FUTURE_WINDOW_DAYS,
-            "fusion": {"W_PE": W_PE, "W_ML": W_ML, "ml_enabled": bool(ml_models)},
+            "fusion": {"W_PE": W_PE, "W_ML": W_ML, "W_BM": W_BM, "ml_enabled": bool(ml_models)},
             "note": "Full: football-data + fixtures fallback + Poisson/Elo + RF+MLP + fusion + EV/Kelly + backtest",
         },
         "stats": {
