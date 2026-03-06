@@ -103,8 +103,9 @@ def load_jczq_fixtures() -> pd.DataFrame:
         data = json.loads(src_json.read_text(encoding="utf-8"))
         rows = data.get("matches") or []
 
-    # 500 抓取为空时，自动使用官方API补齐，保证每天页面有可用预测。
-    if not rows:
+    # 默认只分析竞彩（JCZQ）。需要全局赛事回退时可显式开启。
+    allow_global_fallback = os.getenv("ALLOW_GLOBAL_FIXTURE_FALLBACK", "false").lower() == "true"
+    if not rows and allow_global_fallback:
         rows = fetch_fallback_fixtures()
     if not rows:
         return pd.DataFrame()
@@ -330,6 +331,35 @@ def safe_predict_pe(models: Optional[FitModels], home: str, away: str) -> Dict[s
     return predict_pe(models, home, away)
 
 
+def estimate_xg_from_probs(ph: float, pd_: float, pa: float) -> Tuple[float, float]:
+    total = 2.45
+    xh = total * (ph + 0.5 * pd_)
+    xa = total * (pa + 0.5 * pd_)
+    xh = max(0.55, min(2.9, xh))
+    xa = max(0.45, min(2.7, xa))
+    return round(xh, 2), round(xa, 2)
+
+
+def estimate_scoreline(ph: float, pd_: float, pa: float) -> str:
+    if pd_ >= max(ph, pa):
+        return "1-1" if pd_ > 0.30 else "0-0"
+
+    if ph >= pa:
+        gap = ph - pa
+        if gap > 0.22:
+            return "3-1"
+        if gap > 0.10:
+            return "2-1"
+        return "1-0"
+
+    gap = pa - ph
+    if gap > 0.22:
+        return "1-3"
+    if gap > 0.10:
+        return "1-2"
+    return "0-1"
+
+
 def llm_chat_completion(base: str, key: str, model: str, prompt: str) -> Optional[str]:
     if not base or not key:
         return None
@@ -358,7 +388,7 @@ def llm_chat_completion(base: str, key: str, model: str, prompt: str) -> Optiona
         return None
 
 
-def build_llm_reason(cfg: LLMConfig, pick: Dict[str, object]) -> str:
+def build_llm_reason(cfg: LLMConfig, pick: Dict[str, object]) -> Tuple[str, str]:
     prompt = (
         f"比赛: {pick['home']} vs {pick['away']}\n"
         f"概率: 主{pick['p_home']:.2f} 平{pick['p_draw']:.2f} 客{pick['p_away']:.2f}\n"
@@ -371,13 +401,13 @@ def build_llm_reason(cfg: LLMConfig, pick: Dict[str, object]) -> str:
     gem_text = llm_chat_completion(cfg.gemini_base, cfg.gemini_key, cfg.gemini_model, prompt)
 
     if gpt_text and gem_text:
-        return f"GPT: {gpt_text} | Gemini: {gem_text}"
+        return f"GPT: {gpt_text} | Gemini: {gem_text}", "both"
     if gpt_text:
-        return f"GPT: {gpt_text}"
+        return f"GPT: {gpt_text}", "openai"
     if gem_text:
-        return f"Gemini: {gem_text}"
+        return f"Gemini: {gem_text}", "gemini"
 
-    return "模型共识: 主队进攻效率更优, 概率与赔率存在正EV区间。"
+    return "模型共识: 主队进攻效率更优, 概率与赔率存在正EV区间。", "fallback"
 
 
 def build_prediction_rows(fx: pd.DataFrame, history: pd.DataFrame) -> Tuple[List[Dict[str, object]], Dict[str, object]]:
@@ -420,6 +450,8 @@ def build_prediction_rows(fx: pd.DataFrame, history: pd.DataFrame) -> Tuple[List
         bm_p = predict_from_odds(odds) if all(odds) else None
 
         ph, pd_, pa, weights = fuse_probs(pe_p, ml_p, bm_p)
+        dyn_xg_home, dyn_xg_away = estimate_xg_from_probs(ph, pd_, pa)
+        dyn_score = estimate_scoreline(ph, pd_, pa)
 
         evv = None
         kellyv = None
@@ -445,21 +477,30 @@ def build_prediction_rows(fx: pd.DataFrame, history: pd.DataFrame) -> Tuple[List
             status = label(pick_score)
 
         dt = pd.to_datetime(r.get("Date"), errors="coerce")
+        kick_time = str(r.get("time", "")).strip()
+        most_likely_score = pe.get("most_likely_score", "") if pe_models is not None else ""
+        if not most_likely_score or most_likely_score == "2-1":
+            most_likely_score = dyn_score
+
+        xg_home = round(float(pe.get("xg_home", dyn_xg_home)), 2) if pe_models is not None else dyn_xg_home
+        xg_away = round(float(pe.get("xg_away", dyn_xg_away)), 2) if pe_models is not None else dyn_xg_away
+
         rows.append(
             {
                 "date": dt.strftime("%Y-%m-%d") if not pd.isna(dt) else str(r.get("date", "")),
+                "time": kick_time,
                 "league": r.get("League", "竞彩"),
                 "home": home,
                 "away": away,
-                "xg_home": round(float(pe.get("xg_home", 1.4)), 2),
-                "xg_away": round(float(pe.get("xg_away", 1.1)), 2),
+                "xg_home": xg_home,
+                "xg_away": xg_away,
                 "p_home": round(ph, 4),
                 "p_draw": round(pd_, 4),
                 "p_away": round(pa, 4),
                 "pe_p": [round(pe_p[0], 4), round(pe_p[1], 4), round(pe_p[2], 4)],
                 "ml_p": [round(ml_p[0], 4), round(ml_p[1], 4), round(ml_p[2], 4)] if ml_p else None,
                 "bm_p": [round(bm_p[0], 4), round(bm_p[1], 4), round(bm_p[2], 4)] if bm_p else None,
-                "most_likely_score": pe.get("most_likely_score", "2-1"),
+                "most_likely_score": most_likely_score,
                 "odds_win": odds[0],
                 "odds_draw": odds[1],
                 "odds_lose": odds[2],
@@ -493,9 +534,12 @@ def build_payload(rows: List[Dict[str, object]], bt: Dict[str, object], llm_cfg:
 
     top = ranked[:TOP_N] if ranked else rows[:TOP_N]
 
+    llm_used = {"both": 0, "openai": 0, "gemini": 0, "fallback": 0}
     for p in top:
-        llm_reason = build_llm_reason(llm_cfg, p)
+        llm_reason, llm_status = build_llm_reason(llm_cfg, p)
+        llm_used[llm_status] = llm_used.get(llm_status, 0) + 1
         p["why"] = f"{p['why']} | {llm_reason}"
+        p["llm_status"] = llm_status
 
     return {
         "meta": {
@@ -511,6 +555,7 @@ def build_payload(rows: List[Dict[str, object]], bt: Dict[str, object], llm_cfg:
             "llm": {
                 "openai_model": llm_cfg.openai_model,
                 "gemini_model": llm_cfg.gemini_model,
+                "usage": llm_used,
             },
             "scope": "Only China Sporttery JCZQ",
             "schedule_bjt": ["09:30", "21:30"],
@@ -543,13 +588,20 @@ def write_outputs(payload: Dict[str, object]) -> None:
 
 
 def load_llm_config() -> LLMConfig:
+    def first_env(*keys: str, default: str = "") -> str:
+        for k in keys:
+            v = os.getenv(k, "").strip()
+            if v:
+                return v
+        return default
+
     return LLMConfig(
-        openai_base=os.getenv("OPENAI_BASE_URL", "https://nan.meta-api.vip/v1"),
-        openai_key=os.getenv("OPENAI_API_KEY", ""),
-        openai_model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
-        gemini_base=os.getenv("GEMINI_BASE_URL", "https://once.novai.su/v1"),
-        gemini_key=os.getenv("GEMINI_API_KEY", ""),
-        gemini_model=os.getenv("GEMINI_MODEL", "gemini-2.0-flash"),
+        openai_base=first_env("OPENAI_BASE_URL", "OPENAI_API_BASE", default="https://nan.meta-api.vip/v1"),
+        openai_key=first_env("OPENAI_API_KEY", "OPENAI_KEY"),
+        openai_model=first_env("OPENAI_MODEL", default="gpt-4o-mini"),
+        gemini_base=first_env("GEMINI_BASE_URL", "GEMINI_API_BASE", default="https://once.novai.su/v1"),
+        gemini_key=first_env("GEMINI_API_KEY", "GEMINI_KEY"),
+        gemini_model=first_env("GEMINI_MODEL", default="gemini-2.0-flash"),
     )
 
 
@@ -560,7 +612,7 @@ def run() -> int:
 
     print(f"[1/4] crawl start {utc_now_str()}")
     try:
-        export_500(days=3)
+        export_500(days=4, direction="future")
     except Exception as exc:
         print(f"WARN export_500 failed: {exc}")
 

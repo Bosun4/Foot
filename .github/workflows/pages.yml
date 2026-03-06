@@ -40,6 +40,7 @@ jobs:
           GEMINI_BASE_URL=${{ secrets.GEMINI_BASE_URL }}
           GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL=${{ secrets.GEMINI_MODEL }}
+          ALLOW_GLOBAL_FIXTURE_FALLBACK=false
           EOF
 
       - name: Run Daily JCZQ Pipeline

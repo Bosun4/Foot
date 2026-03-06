@@ -62,14 +62,17 @@ def fetch_one_day(date_str: str) -> List[Dict]:
         })
     return matches
 
-def export(days: int = 1) -> Dict:
+def export(days: int = 1, direction: str = "past") -> Dict:
     # 调用工具函数获取中国时区的今日日期
     # 按中国日期，利用工具函数获取当前日期字符串并解析
     from .utils import now_cn_date
     today = datetime.strptime(now_cn_date(), "%Y-%m-%d")
     all_matches: List[Dict] = []
     for i in range(days):
-        d = (today - timedelta(days=i)).strftime("%Y-%m-%d")
+        if direction == "future":
+            d = (today + timedelta(days=i)).strftime("%Y-%m-%d")
+        else:
+            d = (today - timedelta(days=i)).strftime("%Y-%m-%d")
         try:
             ms = fetch_one_day(d)
             all_matches.extend(ms)
@@ -82,6 +85,7 @@ def export(days: int = 1) -> Dict:
             "generated_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
             "source": "trade.500.com/jczq",
             "days": days,
+            "direction": direction,
             "count": len(all_matches),
         },
         "matches": all_matches

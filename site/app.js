@@ -76,6 +76,14 @@ async function renderPicks() {
   document.getElementById("meta").textContent =
     `UTC ${meta.generated_at_utc || "-"} | 竞彩范围: ${meta.scope || "JCZQ"} | 定时: ${(meta.schedule_bjt || []).join(" / ") || "09:30 / 21:30"}`;
 
+  const llm = meta.llm || {};
+  const usage = llm.usage || {};
+  const llmLine = `LLM状态 OpenAI:${usage.openai || 0} Gemini:${usage.gemini || 0} 双模型:${usage.both || 0} 回退:${usage.fallback || 0}`;
+  const scheduleLine = document.querySelector(".schedule");
+  if (scheduleLine) {
+    scheduleLine.textContent = `${scheduleLine.textContent} | ${llmLine}`;
+  }
+
   document.getElementById("k_fx").textContent = String(stats.fixtures ?? 0);
   document.getElementById("k_top").textContent = String(stats.top ?? 0);
   document.getElementById("k_roi").textContent = fmtPct(bt.roi);
@@ -97,7 +105,7 @@ async function renderPicks() {
   cardWrap.innerHTML = top.slice(0, 4).map((x, i) => `
     <article class="pick-card" style="animation-delay:${i * 120}ms">
       <div class="pick-head">
-        <span>${x.date || ""}</span>
+        <span>${x.date || ""} ${x.time || ""}</span>
         ${badge(x.label)}
       </div>
       <h3>${x.home || "-"} <small>vs</small> ${x.away || "-"}</h3>
@@ -110,7 +118,7 @@ async function renderPicks() {
 
   document.querySelector("#top tbody").innerHTML = top.map((x) => `
     <tr>
-      <td>${x.date || ""}</td>
+      <td>${x.date || ""} ${x.time || ""}</td>
       <td>${x.league || ""}</td>
       <td>${x.home || ""}</td>
       <td>${x.away || ""}</td>
@@ -126,7 +134,7 @@ async function renderPicks() {
 
   document.querySelector("#all tbody").innerHTML = all.map((x) => `
     <tr>
-      <td>${x.date || ""}</td>
+      <td>${x.date || ""} ${x.time || ""}</td>
       <td>${x.league || ""}</td>
       <td>${x.home || ""}</td>
       <td>${x.away || ""}</td>
